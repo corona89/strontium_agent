@@ -15,5 +15,9 @@ web/.next/
 web/node_modules/
 web/.env*.local
 
+# Database
+db/*.db
+
 # Env
 .env
+api/.env
