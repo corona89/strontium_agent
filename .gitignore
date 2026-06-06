@@ -1,0 +1,19 @@
+# IDE
+.idea/
+.vscode/
+
+# Claude
+.claude/
+
+# Python
+api/.venv/
+__pycache__/
+*.pyc
+
+# Next.js
+web/.next/
+web/node_modules/
+web/.env*.local
+
+# Env
+.env
