@@ -1,13 +1,16 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.deps import get_current_account
-from core.jwt import create_access_token, generate_refresh_token, hash_refresh_token
+from core.jwt import hash_refresh_token
+from core.limiter import limiter
+from core.permissions import get_account_permissions
 from core.security import verify_password
+from core.session import issue_session
 from database.connection import get_db
 from database.models import Account, RefreshToken
 from schemas.account import AccountResponse
@@ -19,27 +22,30 @@ _COOKIE = dict(httponly=True, samesite="lax", secure=settings.COOKIE_SECURE)
 
 
 @router.get("/me", response_model=AccountResponse)
-async def me(account: Account = Depends(get_current_account)):
-    return account
+async def me(account: Account = Depends(get_current_account), db: AsyncSession = Depends(get_db)):
+    perm_info = await get_account_permissions(db, account.id)
+    return AccountResponse(
+        id=account.id,
+        email=account.email,
+        nickname=account.nickname,
+        is_active=account.is_active,
+        created_at=account.created_at,
+        updated_at=account.updated_at,
+        roles=perm_info["roles"],
+        permissions=perm_info["permissions"],
+    )
 
 
 @router.post("/login", status_code=status.HTTP_204_NO_CONTENT)
-async def login(body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login(request: Request, body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     account = await db.scalar(select(Account).where(Account.email == body.email))
     if not account or not account.is_active or not account.hashed_password:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다")
     if not verify_password(body.password, account.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다")
 
-    plain, token_hash = generate_refresh_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    db.add(RefreshToken(account_id=account.id, token_hash=token_hash, expires_at=expires_at))
-    await db.commit()
-
-    response.set_cookie("access_token", create_access_token(account.id),
-                        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60, **_COOKIE)
-    response.set_cookie("refresh_token", plain,
-                        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400, **_COOKIE)
+    await issue_session(account, response, db)
 
 
 @router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)
@@ -63,15 +69,7 @@ async def refresh(
 
     # Refresh Token Rotation
     await db.delete(rt)
-    plain, token_hash = generate_refresh_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    db.add(RefreshToken(account_id=account.id, token_hash=token_hash, expires_at=expires_at))
-    await db.commit()
-
-    response.set_cookie("access_token", create_access_token(account.id),
-                        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60, **_COOKIE)
-    response.set_cookie("refresh_token", plain,
-                        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400, **_COOKIE)
+    await issue_session(account, response, db)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

@@ -49,5 +49,7 @@ class AccountResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    roles: list[str] = []
+    permissions: dict[str, dict[str, bool]] = {}
 
     model_config = {"from_attributes": True}

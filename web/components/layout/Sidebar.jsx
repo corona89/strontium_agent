@@ -2,18 +2,29 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Settings } from 'lucide-react'
+import { Home, Settings, Users, Shield, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import useStore from '@/store'
+import useAuthStore from '@/store/auth'
 
-const navItems = [
-  { href: '/', icon: Home, label: '홈' },
-  { href: '/settings', icon: Settings, label: '설정' },
+const ALL_NAV_ITEMS = [
+  { href: '/', icon: Home, label: '홈', function: null },
+  { href: '/settings', icon: Settings, label: '설정', function: 'settings', action: 'read' },
+  { href: '/users', icon: Users, label: '사용자', function: 'users', action: 'read' },
+  { href: '/roles', icon: Shield, label: '역할 관리', function: 'roles', action: 'read' },
+  { href: '/audit-logs', icon: FileText, label: '감사 로그', function: 'audit', action: 'read' },
 ]
 
 export default function Sidebar() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const pathname = usePathname()
+  const user = useAuthStore((s) => s.user)
+  const permissions = user?.permissions || {}
+
+  const navItems = ALL_NAV_ITEMS.filter((item) => {
+    if (!item.function) return true
+    return permissions[item.function]?.[item.action]
+  })
 
   return (
     <aside

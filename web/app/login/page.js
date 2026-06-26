@@ -1,12 +1,23 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import SrLogo from '@/components/login/SrLogo'
 import { api, ApiError } from '@/lib/api'
 import useAuthStore from '@/store/auth'
+
+const OAUTH_ERRORS = {
+  oauth_not_configured: 'Google 로그인이 설정되지 않았습니다',
+  oauth_state_mismatch: 'OAuth 인증에 실패했습니다. 다시 시도해 주세요',
+  oauth_token_exchange_failed: 'Google 인증 토큰 교환에 실패했습니다',
+  oauth_userinfo_failed: 'Google 사용자 정보를 가져오지 못했습니다',
+  oauth_network_error: 'Google 서버와 통신 중 오류가 발생했습니다',
+  oauth_db_error: '계정 처리 중 오류가 발생했습니다',
+  account_inactive: '비활성화된 계정입니다',
+}
 
 function GoogleIcon() {
   return (
@@ -31,13 +42,17 @@ function GoogleIcon() {
   )
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const setUser = useAuthStore((s) => s.setUser)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const oauthError = searchParams.get('error')
+  const oauthErrorMessage = oauthError ? OAUTH_ERRORS[oauthError] || '로그인에 실패했습니다' : ''
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -56,7 +71,7 @@ export default function LoginPage() {
   }
 
   function handleGoogleLogin() {
-    // TODO: Google OAuth 연동
+    window.location.href = api.auth.googleUrl()
   }
 
   return (
@@ -103,8 +118,8 @@ export default function LoginPage() {
             />
           </div>
 
-          {error && (
-            <p className="text-xs text-destructive">{error}</p>
+          {(error || oauthErrorMessage) && (
+            <p className="text-xs text-destructive">{error || oauthErrorMessage}</p>
           )}
 
           <Button type="submit" size="lg" className="mt-1 w-full" disabled={loading}>
@@ -125,12 +140,27 @@ export default function LoginPage() {
           size="lg"
           className="w-full gap-2"
           onClick={handleGoogleLogin}
-          disabled
         >
           <GoogleIcon />
           Google로 계속하기
         </Button>
+
+        {/* 회원가입 링크 */}
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          계정이 없으신가요?{' '}
+          <Link href="/register" className="font-medium text-foreground hover:underline">
+            회원가입
+          </Link>
+        </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   )
 }

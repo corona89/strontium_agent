@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.connection import Base
@@ -32,6 +32,9 @@ class Account(Base):
     )
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="account", cascade="all, delete-orphan"
+    )
+    account_roles: Mapped[list["AccountRole"]] = relationship(
+        "AccountRole", back_populates="account", cascade="all, delete-orphan"
     )
 
 
@@ -66,3 +69,87 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     account: Mapped["Account"] = relationship("Account", back_populates="refresh_tokens")
+
+
+class Function(Base):
+    __tablename__ = "functions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    role_functions: Mapped[list["RoleFunction"]] = relationship(
+        "RoleFunction", back_populates="function", cascade="all, delete-orphan"
+    )
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    role_functions: Mapped[list["RoleFunction"]] = relationship(
+        "RoleFunction", back_populates="role", cascade="all, delete-orphan"
+    )
+    account_roles: Mapped[list["AccountRole"]] = relationship(
+        "AccountRole", back_populates="role", cascade="all, delete-orphan"
+    )
+
+
+class RoleFunction(Base):
+    __tablename__ = "role_functions"
+    __table_args__ = (UniqueConstraint("role_id", "function_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    role_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    function_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("functions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    can_create: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    can_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    can_update: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    can_delete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    role: Mapped["Role"] = relationship("Role", back_populates="role_functions")
+    function: Mapped["Function"] = relationship("Function", back_populates="role_functions")
+
+
+class AccountRole(Base):
+    __tablename__ = "account_roles"
+    __table_args__ = (UniqueConstraint("account_id", "role_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    account_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    account: Mapped["Account"] = relationship("Account", back_populates="account_roles")
+    role: Mapped["Role"] = relationship("Role", back_populates="account_roles")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    actor_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    target_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

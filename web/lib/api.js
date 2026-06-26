@@ -57,5 +57,49 @@ export const api = {
       request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request('/auth/me'),
+    googleUrl: () => `${baseURL()}/auth/google`,
+  },
+  accounts: {
+    create: (email, password, nickname) =>
+      request('/accounts', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, nickname }),
+      }),
+    update: (id, data) =>
+      request(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deactivate: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
+  },
+  roles: {
+    list: () => request('/roles'),
+    create: (name, description) =>
+      request('/roles', { method: 'POST', body: JSON.stringify({ name, description }) }),
+    update: (id, data) =>
+      request(`/roles/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (id) => request(`/roles/${id}`, { method: 'DELETE' }),
+    setFunctions: (id, entries) =>
+      request(`/roles/${id}/functions`, { method: 'PUT', body: JSON.stringify(entries) }),
+  },
+  functions: {
+    list: () => request('/functions'),
+    create: (name, description) =>
+      request('/functions', { method: 'POST', body: JSON.stringify({ name, description }) }),
+    update: (id, data) =>
+      request(`/functions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (id) => request(`/functions/${id}`, { method: 'DELETE' }),
+  },
+  admin: {
+    listUsers: (page = 1, pageSize = 20) =>
+      request(`/admin/users?page=${page}&page_size=${pageSize}`),
+    updateUserRoles: (userId, roleIds) =>
+      request(`/admin/users/${userId}/roles`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role_ids: roleIds }),
+      }),
+    resetUserPassword: (userId) =>
+      request(`/admin/users/${userId}/reset-password`, { method: 'POST' }),
+    deactivateUser: (userId) =>
+      request(`/admin/users/${userId}`, { method: 'DELETE' }),
+    auditLogs: (page = 1, pageSize = 20) =>
+      request(`/admin/audit-logs?page=${page}&page_size=${pageSize}`),
   },
 }

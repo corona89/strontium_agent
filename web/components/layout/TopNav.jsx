@@ -48,7 +48,7 @@ export default function TopNav() {
           <Menu size={16} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push('/settings')}>
             <User size={14} className="mr-2" />
             프로필
           </DropdownMenuItem>
