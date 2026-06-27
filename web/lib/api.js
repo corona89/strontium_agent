@@ -12,6 +12,23 @@ function baseURL() {
   return getEnv('NEXT_PUBLIC_API_URL') || 'http://localhost:8000'
 }
 
+function _parseSSE(raw) {
+  let event = 'message'
+  let dataStr = ''
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) dataStr += line.slice(5).trim()
+  }
+  if (!dataStr) return null
+  let data
+  try {
+    data = JSON.parse(dataStr)
+  } catch {
+    data = dataStr
+  }
+  return { event, data }
+}
+
 async function _fetch(path, options = {}) {
   const res = await fetch(`${baseURL()}${path}`, {
     credentials: 'include',
@@ -23,7 +40,8 @@ async function _fetch(path, options = {}) {
     const body = await res.json().catch(() => ({ detail: res.statusText }))
     throw new ApiError(res.status, body.detail ?? res.statusText)
   }
-  return res.json()
+  const text = await res.text()
+  return text ? JSON.parse(text) : null
 }
 
 // 동시 401 발생 시 refresh 요청을 하나로 collapse
@@ -101,5 +119,61 @@ export const api = {
       request(`/admin/users/${userId}`, { method: 'DELETE' }),
     auditLogs: (page = 1, pageSize = 20) =>
       request(`/admin/audit-logs?page=${page}&page_size=${pageSize}`),
+  },
+  models: {
+    listProviders: () => request('/models/providers'),
+    createProvider: (data) =>
+      request('/models/providers', { method: 'POST', body: JSON.stringify(data) }),
+    updateProvider: (id, data) =>
+      request(`/models/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    removeProvider: (id) => request(`/models/providers/${id}`, { method: 'DELETE' }),
+  },
+  deepResearch: {
+    listModels: () => request('/deep-research/models'),
+    createSession: (data) =>
+      request('/deep-research/sessions', { method: 'POST', body: JSON.stringify(data) }),
+    listSessions: () => request('/deep-research/sessions'),
+    getSession: (id) => request(`/deep-research/sessions/${id}`),
+    deleteSession: (id) => request(`/deep-research/sessions/${id}`, { method: 'DELETE' }),
+    sendMessage: (id, content) =>
+      request(`/deep-research/sessions/${id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }),
+    updatePlan: (id, steps) =>
+      request(`/deep-research/sessions/${id}/plan`, {
+        method: 'PUT',
+        body: JSON.stringify({ steps }),
+      }),
+    approvePlan: (id) => request(`/deep-research/sessions/${id}/plan/approve`, { method: 'POST' }),
+    rejectPlan: (id) => request(`/deep-research/sessions/${id}/plan/reject`, { method: 'POST' }),
+    runSession: (id) => request(`/deep-research/sessions/${id}/run`, { method: 'POST' }),
+    streamSession: async (id, onEvent, signal) => {
+      const res = await fetch(`${baseURL()}/deep-research/sessions/${id}/stream`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: 'text/event-stream' },
+        signal,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new ApiError(res.status, body.detail ?? res.statusText)
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let idx
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const raw = buffer.slice(0, idx)
+          buffer = buffer.slice(idx + 2)
+          const evt = _parseSSE(raw)
+          if (evt) onEvent(evt)
+        }
+      }
+    },
   },
 }

@@ -16,6 +16,8 @@ _FUNCTION_DEFS = [
     ("users", "사용자 관리"),
     ("roles", "역할 및 권한 관리"),
     ("audit", "감사 로그"),
+    ("deep_research", "딥 리서치 에이전트"),
+    ("models", "모델 관리"),
 ]
 
 # role_name, is_system, { function_name: (c, r, u, d) }
@@ -30,6 +32,8 @@ _ROLE_DEFS = [
             "users": (True, True, True, True),
             "roles": (True, True, True, False),  # roles.delete는 보호
             "audit": (True, True, True, True),
+            "deep_research": (True, True, True, True),
+            "models": (True, True, True, True),
         },
     ),
     (
@@ -39,6 +43,7 @@ _ROLE_DEFS = [
         {
             "home": (False, True, False, False),
             "settings": (False, True, True, True),
+            "deep_research": (True, True, False, False),
         },
     ),
     (
@@ -48,6 +53,7 @@ _ROLE_DEFS = [
         {
             "home": (False, True, False, False),
             "settings": (False, True, True, True),
+            "deep_research": (True, True, False, False),
         },
     ),
 ]
@@ -127,4 +133,20 @@ async def ensure_admin_role(db: AsyncSession, account_id: str) -> None:
     )
     if not ar:
         db.add(AccountRole(account_id=account_id, role_id=admin_role.id))
+        await db.flush()
+
+
+async def ensure_default_role(db: AsyncSession, account_id: str) -> None:
+    """모든 신규 계정에 기본 '사용자' 역할을 부여한다 (FR-F26). 회원가입/OAuth 시 호출."""
+    default_role = await db.scalar(select(Role).where(Role.name == "사용자"))
+    if not default_role:
+        return
+    ar = await db.scalar(
+        select(AccountRole).where(
+            AccountRole.account_id == account_id,
+            AccountRole.role_id == default_role.id,
+        )
+    )
+    if not ar:
+        db.add(AccountRole(account_id=account_id, role_id=default_role.id))
         await db.flush()

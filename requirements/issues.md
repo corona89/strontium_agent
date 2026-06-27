@@ -24,10 +24,10 @@
 
 ## 신규 미구현 (딥 리서치 에이전트 / 모델 관리)
 
-- **TODO-09** 딥 리서치 에이전트 기능을 구현한다 (FR-I 참조).
-  - 백엔드: 딥 리서치 세션/메시지 데이터 모델, 플랜 생성·승인·편집 API, 승인된 플랜 기반 에이전트 루프(웹 검색 도구 포함), 결과 스트리밍, LLM 호출(Ollama Cloud / OpenCode Zen) 연동.
-  - 프론트엔드: `/deep-research` 채팅 UI, 플랜 편집/승인 인터랙션, 세션 단위 모델 선택, 중간/최종 결과 스트리밍 렌더링, `deep_research.read` 권한 제어.
-- **TODO-10** 모델 관리 기능을 구현한다 (FR-J 참조).
-  - 백엔드: `llm_providers` 테이블 + Alembic 마이그레이션, API 키 암호화 저장(NFR-S10), `GET/POST/PATCH/DELETE /models/providers` API(운영자 `models.*`), 응답 키 마스킹(NFR-S11), 감사 로그 기록.
-  - 프론트엔드: `/models` 관리 페이지(운영자 전용), 제공자/모델 CRUD UI, `api.models` 네임스페이스 추가.
-- **TODO-11** 회원가입(이메일/OAuth) 시 기본 "사용자" 역할 자동 부여(FR-F26). 기존 구현은 `cpar2002@gmail.com`에만 운영자를 부여하고 일반 가입자에게 역할을 할당하지 않는 gap. `ensure_default_role` 시드 헬퍼 추가 후 `account.py`/`oauth.py`에 연결.
+- ~~**TODO-09** 딥 리서치 에이전트 기능을 구현한다 (FR-I 참조).~~ → **해결**:
+  - 백엔드: `DeepResearchSession`/`DeepResearchMessage` 모델 + Alembic 마이그레이션, `core/llm.py`(Ollama Cloud NDJSON·OpenCode Zen Responses/Messages SSE 스트리밍, 모델 패밀리별 라우팅), `core/websearch.py`(Tavily 검색 도구), `routers/deep_research.py`(세션 생성/조회, 메시지 전송→플랜 생성, 플랜 편집/승인/거절, `POST /run` SSE 에이전트 루프). 에이전트는 `SEARCH: <쿼리>` 프롬프트 기반 tool-use로 웹 검색을 반복 호출하고 중간 진행·최종 결과를 스트리밍.
+  - 프론트엔드: `/deep-research` 채팅 UI(세션 단위 모델 선택, 플랜 편집/승인/거절 인터랙션, SSE 스트리밍 렌더링), `api.deepResearch` 네임스페이스, Sidebar 메뉴(`deep_research.read`).
+- ~~**TODO-10** 모델 관리 기능을 구현한다 (FR-J 참조).~~ → **해결**:
+  - 백엔드: `llm_providers` 테이블 + Alembic 마이그레이션, `GET/POST/PATCH/DELETE /models/providers` API(운영자 `models.*`), 감사 로그 기록. **API 키는 DB에 저장하지 않고 환경변수(`OLLAMA_API_KEY`/`ZEN_AI_API_KEY`)에서 `provider_type`별로 주입** — FR-J02/J03/NFR-S10은 env-var 방식으로 조정됨(아래 참조). 조회 응답은 `api_key_configured`(설정 여부)만 노출.
+  - 프론트엔드: `/models` 관리 페이지(운영자 전용, 제공자/모델 CRUD + 활성화 토글 + 키 설정 상태 표시), `api.models` 네임스페이스, Sidebar 메뉴(`models.read`).
+- ~~**TODO-11** 회원가입(이메일/OAuth) 시 기본 "사용자" 역할 자동 부여(FR-F26).~~ → **해결**: `core/seed.py`에 `ensure_default_role(db, account_id)` 헬퍼 추가, `routers/account.py` `create_account`와 `routers/oauth.py` 신규 가입 분기에서 모든 계정에 "사용자" 역할 부여(`cpar2002@gmail.com`은 추가로 운영자). 시드 기능 목록에 `deep_research`·`models` 추가 및 역할-기능 권한 매핑 확장(FR-F24/F25).

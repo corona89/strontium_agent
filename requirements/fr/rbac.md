@@ -49,7 +49,8 @@
 - **FR-F24** FR-F06의 시드 기능 목록에 `deep_research`(딥 리서치 에이전트)와 `models`(모델 관리)를 추가한다. 앱 시작 시 멱등 시드로 등록한다.
 - **FR-F25** 역할-기능 권한 매핑(FR-F07)을 다음과 같이 확장한다:
   - **운영자**: `deep_research`(C/R/U/D), `models`(C/R/U/D).
-  - **프리미엄 사용자**: `deep_research`(R).
-  - **사용자**: `deep_research`(R).
+  - **프리미엄 사용자**: `deep_research`(C/R).
+  - **사용자**: `deep_research`(C/R).
   - `models` 기능은 **운영자만** C/R/U/D 권한을 갖는다.
+  - 딥 리서치의 세션 생성·메시지 전송·플랜 편집/승인/거절·실행은 모두 `deep_research.create` 액션으로 제어된다. 따라서 FR-I02의 "사용자 이상 접근 및 사용"이 실제로 작동하도록 사용자·프리미엄 사용자에게 `create` 권한을 부여한다(초안 FR-F25가 read만 부여하던 gap 수정).
 - **FR-F26** 회원가입(이메일) 및 OAuth 로그인/가입 시 계정에 기본 **"사용자"** 역할을 자동 부여한다. `cpar2002@gmail.com` 계정은 "사용자" 역할 부여 후 추가로 운영자 역할을 부여한다(`ensure_admin_role` 로직과 함께 `ensure_default_role` 형태로 시드에서 처리). 이는 기존 gap(일반 가입자 역할 미부여)을 해소하고 FR-I02 "사용자 이상 접근"이 실제로 작동하도록 보장한다.

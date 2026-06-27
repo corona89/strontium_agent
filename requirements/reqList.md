@@ -40,7 +40,7 @@ requirements/
 | FR-F | 권한 관리 (RBAC) | [fr/rbac.md](fr/rbac.md) | 26 |
 | FR-G | 감사 로그 (Audit Log) | [fr/audit-log.md](fr/audit-log.md) | 4 |
 | FR-H | 프론트엔드 관리자 페이지 | [fr/admin-ui.md](fr/admin-ui.md) | 5 |
-| FR-I | 딥 리서치 에이전트 (Deep Research Agent) | [fr/deep-research.md](fr/deep-research.md) | 7 |
+| FR-I | 딥 리서치 에이전트 (Deep Research Agent) | [fr/deep-research.md](fr/deep-research.md) | 9 |
 | FR-J | 모델 관리 (Model Management) | [fr/model-mgmt.md](fr/model-mgmt.md) | 4 |
 
 ### 비기능 요구사항 (NFR)

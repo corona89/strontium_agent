@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import log_action
 from core.config import settings
-from core.seed import ADMIN_EMAIL, ensure_admin_role
+from core.seed import ADMIN_EMAIL, ensure_admin_role, ensure_default_role
 from core.session import issue_session
 from database.connection import get_db
 from database.models import Account, OAuthAccount
@@ -140,6 +140,7 @@ async def google_callback(
                 account = Account(email=email, nickname=nickname, hashed_password=None)
                 db.add(account)
                 await db.flush()
+                await ensure_default_role(db, account.id)
                 if email == ADMIN_EMAIL:
                     await ensure_admin_role(db, account.id)
                 await log_action(

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.connection import Base
@@ -153,3 +153,66 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class LLMProvider(Base):
+    __tablename__ = "llm_providers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    # "ollama_cloud" | "opencode_zen"
+    provider_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 모델 식별자 문자열 배열
+    models: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    sessions: Mapped[list["DeepResearchSession"]] = relationship(
+        "DeepResearchSession", back_populates="provider"
+    )
+
+
+class DeepResearchSession(Base):
+    __tablename__ = "deep_research_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    account_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("llm_providers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # draft | awaiting_approval | approved | rejected | running | completed
+    status: Mapped[str] = mapped_column(String(30), default="draft", nullable=False)
+    plan: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    account: Mapped["Account"] = relationship("Account")
+    provider: Mapped["LLMProvider | None"] = relationship("LLMProvider", back_populates="sessions")
+    messages: Mapped[list["DeepResearchMessage"]] = relationship(
+        "DeepResearchMessage", back_populates="session", cascade="all, delete-orphan",
+        order_by="DeepResearchMessage.created_at",
+    )
+
+
+class DeepResearchMessage(Base):
+    __tablename__ = "deep_research_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    session_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("deep_research_sessions.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    # user | assistant | tool
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    # text | plan | step_progress | search | final
+    kind: Mapped[str] = mapped_column(String(20), default="text", nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    session: Mapped["DeepResearchSession"] = relationship("DeepResearchSession", back_populates="messages")

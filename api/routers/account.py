@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.audit import log_action
 from core.deps import get_current_account
 from core.limiter import limiter
-from core.seed import ADMIN_EMAIL, ensure_admin_role
+from core.seed import ADMIN_EMAIL, ensure_admin_role, ensure_default_role
 from core.security import hash_password
 from database.connection import get_db
 from database.models import Account
@@ -32,7 +32,10 @@ async def create_account(request: Request, body: AccountCreate, db: AsyncSession
     await db.flush()
 
     if body.email == ADMIN_EMAIL:
+        await ensure_default_role(db, account.id)
         await ensure_admin_role(db, account.id)
+    else:
+        await ensure_default_role(db, account.id)
 
     await log_action(db, actor_id=account.id, target_id=account.id, action="signup",
                      detail={"email": account.email, "nickname": account.nickname})

@@ -4,13 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import update
 
 from core.config import settings
 from core.limiter import limiter
 from core.seed import run_seed
 from database.connection import Base, AsyncSessionLocal, engine
 import database.models  # noqa: F401 — 모델을 Base에 등록
-from routers import account, admin, auth, oauth, roles
+from database.models import DeepResearchSession
+from routers import account, admin, auth, deep_research, models, oauth, roles
 
 
 @asynccontextmanager
@@ -18,6 +20,13 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with AsyncSessionLocal() as db:
+        # 서버 비정상 종료로 갇힌 running 세션 복구 (백그라운드 태스크는 재시작 시 소실)
+        await db.execute(
+            update(DeepResearchSession)
+            .where(DeepResearchSession.status == "running")
+            .values(status="approved")
+        )
+        await db.commit()
         await run_seed(db)
     yield
 
@@ -40,6 +49,8 @@ app.include_router(auth.router)
 app.include_router(oauth.router)
 app.include_router(roles.router)
 app.include_router(admin.router)
+app.include_router(models.router)
+app.include_router(deep_research.router)
 
 
 @app.get("/")

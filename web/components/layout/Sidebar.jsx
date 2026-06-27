@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Settings, Users, Shield, FileText } from 'lucide-react'
+import { Home, Settings, Users, Shield, FileText, Cpu, Microscope } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import useStore from '@/store'
 import useAuthStore from '@/store/auth'
@@ -13,6 +13,8 @@ const ALL_NAV_ITEMS = [
   { href: '/users', icon: Users, label: '사용자', function: 'users', action: 'read' },
   { href: '/roles', icon: Shield, label: '역할 관리', function: 'roles', action: 'read' },
   { href: '/audit-logs', icon: FileText, label: '감사 로그', function: 'audit', action: 'read' },
+  { href: '/deep-research', icon: Microscope, label: '딥 리서치', function: 'deep_research', action: 'read' },
+  { href: '/models', icon: Cpu, label: '모델 관리', function: 'models', action: 'read' },
 ]
 
 export default function Sidebar() {

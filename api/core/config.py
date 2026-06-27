@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
+    # LLM 제공자 API 키 — 환경변수로 주입, DB/코드에 영속화하지 않는다(NFR-S10).
+    OLLAMA_API_KEY: str | None = None
+    ZEN_AI_API_KEY: str | None = None
+    # 웹 검색 도구(Tavily) — 딥 리서치 에이전트용
+    TAVILY_API_KEY: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
