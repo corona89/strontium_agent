@@ -2,6 +2,9 @@
 .idea/
 .vscode/
 
+# Runtime (start.sh / stop.sh PID & logs)
+.run/
+
 # Claude
 .claude/
 
