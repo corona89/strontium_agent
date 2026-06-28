@@ -176,4 +176,79 @@ export const api = {
       }
     },
   },
+  llmwiki: {
+    listModels: () => request('/llmwiki/models'),
+    listWikis: () => request('/llmwiki/wikis'),
+    createWiki: (data) =>
+      request('/llmwiki/wikis', { method: 'POST', body: JSON.stringify(data) }),
+    getWiki: (id) => request(`/llmwiki/wikis/${id}`),
+    updateWiki: (id, data) =>
+      request(`/llmwiki/wikis/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteWiki: (id) => request(`/llmwiki/wikis/${id}`, { method: 'DELETE' }),
+    createCategory: (wikiId, name) =>
+      request(`/llmwiki/wikis/${wikiId}/categories`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      }),
+    updateCategory: (wikiId, catId, name) =>
+      request(`/llmwiki/wikis/${wikiId}/categories/${catId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      }),
+    deleteCategory: (wikiId, catId) =>
+      request(`/llmwiki/wikis/${wikiId}/categories/${catId}`, { method: 'DELETE' }),
+    createPage: (wikiId, data) =>
+      request(`/llmwiki/wikis/${wikiId}/pages`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getPage: (wikiId, pageId) => request(`/llmwiki/wikis/${wikiId}/pages/${pageId}`),
+    updatePage: (wikiId, pageId, data) =>
+      request(`/llmwiki/wikis/${wikiId}/pages/${pageId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    deletePage: (wikiId, pageId) =>
+      request(`/llmwiki/wikis/${wikiId}/pages/${pageId}`, { method: 'DELETE' }),
+    ingest: (wikiId, formData) =>
+      request(`/llmwiki/wikis/${wikiId}/ingest`, {
+        method: 'POST',
+        body: formData,
+        headers: {},
+      }),
+    attachmentUrl: (wikiId, name) =>
+      `${baseURL()}/llmwiki/wikis/${wikiId}/attachments/${name}`,
+    listMessages: (wikiId) => request(`/llmwiki/wikis/${wikiId}/messages`),
+    clearMessages: (wikiId) =>
+      request(`/llmwiki/wikis/${wikiId}/messages`, { method: 'DELETE' }),
+    chat: async (wikiId, question, onEvent, signal) => {
+      const res = await fetch(`${baseURL()}/llmwiki/wikis/${wikiId}/chat`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ question }),
+        signal,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new ApiError(res.status, body.detail ?? res.statusText)
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let idx
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const raw = buffer.slice(0, idx)
+          buffer = buffer.slice(idx + 2)
+          const evt = _parseSSE(raw)
+          if (evt) onEvent(evt)
+        }
+      }
+    },
+    listDeepResearchSessions: () => request('/deep-research/sessions'),
+  },
 }

@@ -18,11 +18,13 @@ requirements/
 │   ├── audit-log.md    ← FR-G: 감사 로그
 │   ├── admin-ui.md     ← FR-H: 프론트엔드 관리자 페이지
 │   ├── deep-research.md ← FR-I: 딥 리서치 에이전트
-│   └── model-mgmt.md   ← FR-J: 모델 관리
+│   ├── model-mgmt.md   ← FR-J: 모델 관리
+│   └── llmwiki.md      ← FR-K: LLM 위키
 ├── nfr/                ← 비기능 요구사항 (Non-Functional Requirements)
 │   ├── security.md     ← NFR-S: 보안
 │   ├── tech-stack.md   ← NFR-T: 기술 스택
 │   └── database.md     ← NFR-D: 데이터베이스
+├── plan.md             ← 미구현 요구사항 / 진행 중 계획 큐
 └── issues.md           ← 미구현 기능 및 알려진 이슈
 ```
 
@@ -42,6 +44,7 @@ requirements/
 | FR-H | 프론트엔드 관리자 페이지 | [fr/admin-ui.md](fr/admin-ui.md) | 5 |
 | FR-I | 딥 리서치 에이전트 (Deep Research Agent) | [fr/deep-research.md](fr/deep-research.md) | 9 |
 | FR-J | 모델 관리 (Model Management) | [fr/model-mgmt.md](fr/model-mgmt.md) | 4 |
+| FR-K | LLM 위키 (LLM Wiki) | [fr/llmwiki.md](fr/llmwiki.md) | 11 |
 
 ### 비기능 요구사항 (NFR)
 
@@ -56,6 +59,7 @@ requirements/
 | 카테고리 | 파일 |
 |---|---|
 | 프로젝트 개요 | [overview.md](overview.md) |
+| 미구현 요구사항 / 진행 중 계획 큐 | [plan.md](plan.md) |
 | 미구현 기능 및 알려진 이슈 | [issues.md](issues.md) |
 
 ## 식별자 체계

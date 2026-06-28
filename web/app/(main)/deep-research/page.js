@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Group as PanelGroup, Panel, Separator as PanelSeparator } from 'react-resizable-panels'
 import { api, ApiError } from '@/lib/api'
-import MarkdownRenderer from '@/components/deep-research/MarkdownRenderer'
+import MarkdownRenderer from '@/components/markdown/MarkdownRenderer'
 import useAuthStore from '@/store/auth'
 
 const STATUS_LABEL = {

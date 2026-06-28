@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # 웹 검색 도구(Tavily) — 딥 리서치 에이전트용
     TAVILY_API_KEY: str | None = None
 
+    # LLM 위키 — 파일시스템 루트(repo/wiki), 업로드 최대 바이트
+    WIKI_ROOT: Path = Path(__file__).resolve().parents[2] / "wiki"
+    UPLOAD_MAX_BYTES: int = 25 * 1024 * 1024  # 파일당 25MB
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

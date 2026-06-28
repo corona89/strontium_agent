@@ -138,6 +138,75 @@ async def chat_complete(
     return "".join(chunks)
 
 
+def _build_image_messages(
+    provider_type: str, model: str, prompt: str, image_b64: str, mime: str
+) -> list[dict]:
+    """비전 요청용 messages를 제공자/모델 패밀리에 맞게 구성한다.
+
+    stream_chat의 기존 라우팅과 SSE 파서를 그대로 재사용한다.
+    미지원 모델이면 제공자 API가 오류를 반환하고 _raise_http_error가 RuntimeError로 변환한다.
+    """
+    data_url = f"data:{mime};base64,{image_b64}"
+    if provider_type == "ollama_cloud":
+        # Ollama: message.images 필드에 base64 원문
+        return [{"role": "user", "content": prompt, "images": [image_b64]}]
+    if model.startswith("gpt"):
+        # OpenAI Responses API: input_text / input_image 블록
+        return [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": {"url": data_url}},
+                ],
+            }
+        ]
+    if model.startswith("claude"):
+        # Anthropic Messages API: text / image(base64 source) 블록
+        return [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": mime, "data": image_b64},
+                    },
+                ],
+            }
+        ]
+    # 표준 OpenAI 호환: text / image_url(data URL) 블록
+    return [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+        }
+    ]
+
+
+async def describe_image(
+    provider_type: str,
+    base_url: str | None,
+    model: str,
+    prompt: str,
+    image_bytes: bytes,
+    mime: str,
+) -> str:
+    """비전 모델로 이미지를 묘사/분석해 텍스트를 반환한다.
+    비전 미지원 모델이면 제공자 API 오류가 RuntimeError로 전파된다(라우터에서 400 처리)."""
+    import base64
+
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+    messages = _build_image_messages(provider_type, model, prompt, b64, mime)
+    chunks: list[str] = []
+    async for delta in stream_chat(provider_type, base_url, model, messages):
+        chunks.append(delta)
+    return "".join(chunks)
+
+
 async def _stream_ollama(
     base_url: str | None, model: str, messages: list[dict], api_key: str
 ) -> AsyncIterator[str]:

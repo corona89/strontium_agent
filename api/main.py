@@ -12,7 +12,7 @@ from core.seed import run_seed
 from database.connection import Base, AsyncSessionLocal, engine
 import database.models  # noqa: F401 — 모델을 Base에 등록
 from database.models import DeepResearchSession
-from routers import account, admin, auth, deep_research, models, oauth, roles
+from routers import account, admin, auth, deep_research, llmwiki, models, oauth, roles
 
 
 @asynccontextmanager
@@ -51,6 +51,7 @@ app.include_router(roles.router)
 app.include_router(admin.router)
 app.include_router(models.router)
 app.include_router(deep_research.router)
+app.include_router(llmwiki.router)
 
 
 @app.get("/")

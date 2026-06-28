@@ -216,3 +216,62 @@ class DeepResearchMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     session: Mapped["DeepResearchSession"] = relationship("DeepResearchSession", back_populates="messages")
+
+
+class Wiki(Base):
+    __tablename__ = "wikis"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_account_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("llm_providers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    pages: Mapped[list["WikiPage"]] = relationship(
+        "WikiPage", back_populates="wiki", cascade="all, delete-orphan",
+        order_by="WikiPage.created_at",
+    )
+
+
+class WikiPage(Base):
+    __tablename__ = "wiki_pages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    wiki_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("wikis.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    category_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    slug: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 파일시스템이 진실의 원천; DB는 검색 인덱스용 콘텐츠 캐시
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # md | deepresearch | pdf | image | youtube | manual
+    source_type: Mapped[str] = mapped_column(String(20), default="manual", nullable=False)
+    source_ref: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    wiki: Mapped["Wiki"] = relationship("Wiki", back_populates="pages")
+
+
+class WikiChatMessage(Base):
+    __tablename__ = "wiki_chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    wiki_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("wikis.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # user | assistant
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    # [{type: wiki|web, title, ref, ...}]
+    sources: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

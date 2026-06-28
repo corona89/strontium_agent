@@ -18,6 +18,7 @@ _FUNCTION_DEFS = [
     ("audit", "감사 로그"),
     ("deep_research", "딥 리서치 에이전트"),
     ("models", "모델 관리"),
+    ("llmwiki", "LLM 위키"),
 ]
 
 # role_name, is_system, { function_name: (c, r, u, d) }
@@ -34,6 +35,7 @@ _ROLE_DEFS = [
             "audit": (True, True, True, True),
             "deep_research": (True, True, True, True),
             "models": (True, True, True, True),
+            "llmwiki": (True, True, True, True),
         },
     ),
     (
@@ -44,6 +46,7 @@ _ROLE_DEFS = [
             "home": (False, True, False, False),
             "settings": (False, True, True, True),
             "deep_research": (True, True, False, False),
+            "llmwiki": (True, True, True, True),
         },
     ),
     (
@@ -54,6 +57,7 @@ _ROLE_DEFS = [
             "home": (False, True, False, False),
             "settings": (False, True, True, True),
             "deep_research": (True, True, False, False),
+            "llmwiki": (True, True, True, True),
         },
     ),
 ]
