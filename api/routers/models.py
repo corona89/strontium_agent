@@ -3,28 +3,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import log_action
-from core.config import settings
+from core import crypto
 from core.deps import require_permission
+from core.llm import resolve_api_key
 from database.connection import get_db
 from database.models import Account, LLMProvider
 from schemas.models import ProviderCreate, ProviderResponse, ProviderUpdate
 
 router = APIRouter(prefix="/models", tags=["models"])
 
-_PROVIDER_KEY_ATTR = {
-    "ollama_cloud": "OLLAMA_API_KEY",
-    "opencode_zen": "ZEN_AI_API_KEY",
-}
-
-
-def _key_configured(provider_type: str) -> bool:
-    attr = _PROVIDER_KEY_ATTR.get(provider_type)
-    if not attr:
-        return False
-    return bool(getattr(settings, attr, None))
-
 
 def _to_response(provider: LLMProvider) -> ProviderResponse:
+    # 복호화해 마스킹된 값을 만든다. 복호화 실패(키 회전 등) 시 masked=None.
+    plaintext = resolve_api_key(provider)
     return ProviderResponse(
         id=provider.id,
         provider_type=provider.provider_type,
@@ -32,7 +23,8 @@ def _to_response(provider: LLMProvider) -> ProviderResponse:
         base_url=provider.base_url,
         models=provider.models or [],
         is_active=provider.is_active,
-        api_key_configured=_key_configured(provider.provider_type),
+        api_key_configured=bool(provider.api_key_encrypted),
+        api_key_masked=crypto.mask(plaintext),
         created_at=provider.created_at,
         updated_at=provider.updated_at,
     )
@@ -57,6 +49,7 @@ async def create_provider(
         provider_type=body.provider_type,
         display_name=body.display_name,
         base_url=body.base_url,
+        api_key_encrypted=crypto.encrypt(body.api_key),
         models=body.models,
         is_active=body.is_active,
     )
@@ -67,6 +60,7 @@ async def create_provider(
         actor_id=admin.id,
         target_id=provider.id,
         action="models.create_provider",
+        # 평문 키는 detail에 절대 기록하지 않는다(NFR-S09/S11)
         detail={"provider_type": provider.provider_type, "display_name": provider.display_name},
     )
     await db.commit()
@@ -98,6 +92,9 @@ async def update_provider(
     if body.is_active is not None:
         provider.is_active = body.is_active
         detail["is_active"] = body.is_active
+    if body.api_key is not None:
+        provider.api_key_encrypted = crypto.encrypt(body.api_key)
+        detail["api_key_rotated"] = True  # 평문이 아닌 회전 사실만 기록
 
     await log_action(
         db,

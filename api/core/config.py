@@ -27,9 +27,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
-    # LLM 제공자 API 키 — 환경변수로 주입, DB/코드에 영속화하지 않는다(NFR-S10).
-    OLLAMA_API_KEY: str | None = None
-    ZEN_AI_API_KEY: str | None = None
+    # LLM 제공자 API 키 암호화 마스터 키(Fernet). UI에서 등록된 키는 이 키로 암호화해 DB에 저장(NFR-S10).
+    # 미설정 시 개발 환경은 임시 키를 생성(재시작 시 복호화 불가), 운영 환경은 시작 거부.
+    LLM_KEY_ENCRYPTION_KEY: str | None = None
+    # ABCLab 기본 base URL (코드가 /v1/... 경로를 붙이므로 /v1 제외). .env에서 덮어쓰기 가능.
+    ABCLAB_BASE_URL: str = "https://api.abclab.ktds.com"
     # 웹 검색 도구(Tavily) — 딥 리서치 에이전트용
     TAVILY_API_KEY: str | None = None
 

@@ -4144,7 +4144,8 @@
             "type": "string",
             "enum": [
               "ollama_cloud",
-              "opencode_zen"
+              "opencode_zen",
+              "abclab"
             ],
             "title": "Provider Type"
           },
@@ -4175,12 +4176,17 @@
             "type": "boolean",
             "title": "Is Active",
             "default": true
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
           }
         },
         "type": "object",
         "required": [
           "provider_type",
-          "display_name"
+          "display_name",
+          "api_key"
         ],
         "title": "ProviderCreate"
       },
@@ -4255,6 +4261,17 @@
             "type": "boolean",
             "title": "Api Key Configured"
           },
+          "api_key_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Masked"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -4275,6 +4292,7 @@
           "models",
           "is_active",
           "api_key_configured",
+          "api_key_masked",
           "created_at",
           "updated_at"
         ],
@@ -4328,6 +4346,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
           }
         },
         "type": "object",

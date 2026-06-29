@@ -102,6 +102,7 @@ async def decompose_document(
     provider_type: str | None,
     base_url: str | None,
     model: str | None,
+    api_key: str | None,
     wiki_id: str,
     title: str,
     content: str,
@@ -114,8 +115,8 @@ async def decompose_document(
     새로 생성된 카테고리는 created_categories에 누적된다.
     LLM 미설정/호출 실패/파싱 실패 → 단일 페이지 폴백(정보 손실 방지).
     """
-    if not provider_type or not model:
-        logger.warning("decompose requested but no provider/model; single-page fallback")
+    if not provider_type or not model or not api_key:
+        logger.warning("decompose requested but no provider/model/key; single-page fallback")
         return _single_fallback(title, content, None)
 
     body = _truncate(content)
@@ -126,7 +127,7 @@ async def decompose_document(
         {"role": "user", "content": _build_user_prompt(existing_names, title, body)},
     ]
     try:
-        raw = await chat_complete(provider_type, base_url, model, messages)
+        raw = await chat_complete(provider_type, base_url, model, messages, api_key)
     except Exception as e:
         logger.warning("decompose LLM call failed: %s; single-page fallback", e)
         return _single_fallback(title, content, None)

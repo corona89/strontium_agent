@@ -169,12 +169,13 @@ async def _ingest_image(
     provider_type: str,
     base_url: str | None,
     model: str,
+    api_key: str,
     decomposer: Decomposer | None = None,
 ) -> list[WikiPage]:
     from core.llm import describe_image
 
     description = await describe_image(
-        provider_type, base_url, model, _IMAGE_PROMPT, data, mime
+        provider_type, base_url, model, _IMAGE_PROMPT, data, mime, api_key
     )
     title = _title_from_md(description, store.slugify(filename) or "이미지")
     stored = await store.save_attachment(wiki_id, filename, data)
@@ -288,6 +289,7 @@ async def ingest(
     provider_type: str | None = None,
     base_url: str | None = None,
     model: str | None = None,
+    api_key: str | None = None,
     auto_categorize: bool = False,
 ) -> tuple[list[WikiPage], list[dict]]:
     """제공된 소스들을 처리해 페이지를 생성한다.
@@ -305,7 +307,7 @@ async def ingest(
 
         async def _decomposer(title: str, content: str) -> list[dict]:
             return await decompose_document(
-                provider_type, base_url, model, wiki_id, title, content,
+                provider_type, base_url, model, api_key, wiki_id, title, content,
                 created_categories=created_categories,
             )
 
@@ -335,7 +337,7 @@ async def ingest(
             created.extend(
                 await _ingest_image(
                     db, wiki_id, category_id, filename, data, mime,
-                    provider_type, base_url, model, decomposer,
+                    provider_type, base_url, model, api_key, decomposer,
                 )
             )
         elif _is_pdf(filename, f.content_type):

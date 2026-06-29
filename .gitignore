@@ -21,6 +21,7 @@ db/*.db
 # Env
 .env
 api/.env
+api/.dev-fernet-key
 
 # LLM 위키 사용자 콘텐츠(트래킹 제외, 디렉토리 자체는 유지)
 wiki/*

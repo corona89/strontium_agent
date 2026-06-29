@@ -22,8 +22,8 @@ from core.config import settings
 from core.deps import require_permission
 from core.llm import (
     chat_complete,
-    is_configured,
     list_enabled_models,
+    resolve_api_key,
 )
 from core.search import bm25_search
 from core.websearch import format_search_results, web_search
@@ -184,10 +184,11 @@ async def list_models_for_selection(
     )
     result = []
     for p in providers:
-        if not is_configured(p.provider_type):
+        api_key = resolve_api_key(p)
+        if not api_key:
             continue
         registered = list(p.models or [])
-        enabled = await list_enabled_models(p.provider_type, p.base_url)
+        enabled = await list_enabled_models(p.provider_type, p.base_url, api_key)
         usable = [m for m in registered if m in enabled] if enabled is not None else registered
         result.append(
             ProviderForSelection(
@@ -237,10 +238,10 @@ async def create_wiki(
         provider = await db.get(LLMProvider, body.provider_id)
         if not provider or not provider.is_active:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "활성 제공자를 찾을 수 없습니다")
-        if not is_configured(provider.provider_type):
+        if not resolve_api_key(provider):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                f"{provider.provider_type} API 키가 설정되지 않았습니다",
+                f"{provider.provider_type} API 키가 제공자에 설정되지 않았습니다",
             )
         if body.model and body.model not in (provider.models or []):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "선택한 모델이 제공자에 없습니다")
@@ -485,6 +486,8 @@ async def ingest_into_wiki(
         provider = await db.get(LLMProvider, wiki.provider_id)
     provider_type = provider.provider_type if provider else None
     base_url = provider.base_url if provider else None
+    # 평문 API 키는 백엔드에서만 사용(NFR-S11). 자동 분류/이미지 주입에 필요.
+    api_key = resolve_api_key(provider) if provider else None
 
     # 자동 분류에는 위키에 LLM 제공자/모델이 설정되어야 한다.
     if auto_categorize and not category_id:
@@ -503,6 +506,7 @@ async def ingest_into_wiki(
             youtube_url=youtube_url,
             provider_type=provider_type,
             base_url=base_url,
+            api_key=api_key,
             model=wiki.model,
             auto_categorize=auto_categorize,
         )
@@ -612,6 +616,7 @@ async def _background_save_to_wiki(
     provider_type: str,
     base_url: str | None,
     model: str,
+    api_key: str | None,
 ) -> None:
     """웹 보강 답변을 위키에 주제별로 분해해 백그라운드 저장한다(fire-and-forget).
 
@@ -625,7 +630,7 @@ async def _background_save_to_wiki(
                 async with AsyncSessionLocal() as bg_db:
                     created_categories: list[dict] = []
                     sections = await decompose_document(
-                        provider_type, base_url, model, wiki_id,
+                        provider_type, base_url, model, api_key, wiki_id,
                         title=question, content=answer,
                         created_categories=created_categories,
                     )
@@ -653,11 +658,11 @@ async def _background_save_to_wiki(
 
 def _spawn_background_save(
     wiki_id: str, question: str, answer: str,
-    provider_type: str, base_url: str | None, model: str,
+    provider_type: str, base_url: str | None, model: str, api_key: str | None,
 ) -> None:
     """백그라운드 저장 태스크를 예약하고 GC 방지용 참조를 보관한다."""
     task = asyncio.create_task(
-        _background_save_to_wiki(wiki_id, question, answer, provider_type, base_url, model)
+        _background_save_to_wiki(wiki_id, question, answer, provider_type, base_url, model, api_key)
     )
     _bg_tasks.add(task)
     task.add_done_callback(_bg_tasks.discard)
@@ -676,6 +681,12 @@ async def chat(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "위키에 LLM 제공자/모델이 설정되지 않았습니다",
+        )
+    api_key = resolve_api_key(provider)
+    if not api_key:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{provider.provider_type} API 키가 제공자에 설정되지 않았습니다",
         )
 
     async def event_stream():
@@ -717,7 +728,7 @@ async def chat(
             searches = 0
             while True:
                 raw = await chat_complete(
-                    provider.provider_type, provider.base_url, wiki.model, messages
+                    provider.provider_type, provider.base_url, wiki.model, messages, api_key
                 )
                 m = _TOOL_RE.search(raw)
                 if m and searches < _MAX_SEARCHES:
@@ -756,7 +767,7 @@ async def chat(
                     }
                 )
                 full_answer = await chat_complete(
-                    provider.provider_type, provider.base_url, wiki.model, messages
+                    provider.provider_type, provider.base_url, wiki.model, messages, api_key
                 )
         except RuntimeError as e:
             yield _sse("error", {"message": str(e)})
@@ -784,7 +795,7 @@ async def chat(
         if used_web and full_answer.strip():
             _spawn_background_save(
                 wiki_id, body.question, full_answer,
-                provider.provider_type, provider.base_url, wiki.model,
+                provider.provider_type, provider.base_url, wiki.model, api_key,
             )
             saving_in_background = True
 

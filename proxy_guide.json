@@ -1,0 +1,128 @@
+{
+    "info": {
+      "_postman_id": "2b65ef7c-4b35-46b4-aaa3-c7bd04095d21",
+      "name": "openai compatible",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      "_exporter_id": "28436802"
+    },
+    "item": [
+      {
+        "name": "OpenAI Compatible",
+        "item": [
+          {
+            "name": "/chat/completions",
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "//model : 모델 이름은 AI:ON-U 의 플레이그라운드에 있는 모델 이름을 넣으면 됨\n{\n        \"model\": \"GPT-5.4\",\n        \"messages\": [\n            {\n                \"role\": \"developer\",\n                \"content\": \"You are a helpful assistant.\"\n            },\n            {\n                \"role\": \"user\",\n                \"content\": \"AI모델에 대한 설명\"\n            }\n        ],\n        // \"apiKey\": \"code-user07\",\n        \"stream\": true\n}\n\n",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{api_url}}/v1/chat/completions",
+                "host": [
+                  "{{api_url}}"
+                ],
+                "path": [
+                  "v1",
+                  "chat",
+                  "completions"
+                ]
+              }
+            },
+            "response": []
+          },
+          {
+            "name": "/chat/responses",
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"model\": \"GPT-5.4\",\n  \"instructions\": \"시스템 프롬프트 입력\",\n  \"input\": [\n    {\"role\": \"user\", \"content\": \"AI 모델의 종류\"},\n    {\"role\": \"assistant\", \"content\": \"AI 모델의 종류는 다음과 같습니다.\"},\n    {\"role\": \"user\", \"content\": \"개별 모델의 특징은?\"}\n  ],\n  \"stream\": true\n}\n",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{api_url}}/v1/responses",
+                "host": [
+                  "{{api_url}}"
+                ],
+                "path": [
+                  "v1",
+                  "responses"
+                ]
+              }
+            },
+            "response": []
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "code-NVSucuD0v2YFi2HSd56UWE6X",
+              "type": "string"
+            }
+          ]
+        },
+        "event": [
+          {
+            "listen": "prerequest",
+            "script": {
+              "type": "text/javascript",
+              "packages": {},
+              "requests": {},
+              "exec": [
+                ""
+              ]
+            }
+          },
+          {
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "packages": {},
+              "requests": {},
+              "exec": [
+                ""
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "event": [
+      {
+        "listen": "prerequest",
+        "script": {
+          "type": "text/javascript",
+          "packages": {},
+          "requests": {},
+          "exec": [
+            ""
+          ]
+        }
+      },
+      {
+        "listen": "test",
+        "script": {
+          "type": "text/javascript",
+          "packages": {},
+          "requests": {},
+          "exec": [
+            ""
+          ]
+        }
+      }
+    ]
+}

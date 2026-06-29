@@ -1,46 +1,45 @@
 import json
 import logging
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 import httpx
 
+from core import crypto
 from core.config import settings
+
+if TYPE_CHECKING:
+    from database.models import LLMProvider
 
 logger = logging.getLogger(__name__)
 
-_PROVIDER_KEY_ATTR = {
-    "ollama_cloud": "OLLAMA_API_KEY",
-    "opencode_zen": "ZEN_AI_API_KEY",
-}
-_PROVIDER_DEFAULT_BASE = {
+_PROVIDERS_DEFAULT_BASE = {
     "ollama_cloud": "https://ollama.com",
     "opencode_zen": "https://opencode.ai/zen",
+    # ABCLab base는 환경변수로 조정 가능 (코드가 /v1/... 경로를 붙이므로 /v1 제외)
+    "abclab": settings.ABCLAB_BASE_URL,
 }
 
 
-def get_api_key(provider_type: str) -> str | None:
-    """provider_type에 해당하는 환경변수 API 키를 반환한다. 평문 키는 백엔드에서만 사용(NFR-S11)."""
-    attr = _PROVIDER_KEY_ATTR.get(provider_type)
-    return getattr(settings, attr, None) if attr else None
+def resolve_api_key(provider: "LLMProvider") -> str | None:
+    """제공자의 암호화된 API 키를 복호화해 평문으로 반환한다.
+    평문 키는 백엔드 메모리에서만 사용하고 로그/응답에 노출하지 않는다(NFR-S11)."""
+    return crypto.decrypt(provider.api_key_encrypted)
 
 
-def is_configured(provider_type: str) -> bool:
-    return bool(get_api_key(provider_type))
-
-
-async def list_enabled_models(provider_type: str, base_url: str | None = None) -> set[str] | None:
+async def list_enabled_models(
+    provider_type: str, base_url: str | None, api_key: str
+) -> set[str] | None:
     """제공자 API에서 현재 키로 사용 가능한 모델 ID 집합을 반환한다.
-    조회 실패 시 None(검증 건너뜀). Ollama Cloud: GET /api/tags, OpenCode Zen: GET /v1/models."""
-    api_key = get_api_key(provider_type)
+    조회 실패 시 None(검증 건너뜀). Ollama Cloud: GET /api/tags, OpenAI 호환(opencode_zen/abclab): GET /v1/models."""
     if not api_key:
         return None
     if provider_type == "ollama_cloud":
-        url = f"{base_url or _PROVIDER_DEFAULT_BASE['ollama_cloud']}/api/tags"
+        url = f"{base_url or _PROVIDERS_DEFAULT_BASE['ollama_cloud']}/api/tags"
         headers = {"Authorization": f"Bearer {api_key}"}
         models_key = "models"
         name_key = "name"
-    elif provider_type == "opencode_zen":
-        url = f"{base_url or _PROVIDER_DEFAULT_BASE['opencode_zen']}/v1/models"
+    elif provider_type in ("opencode_zen", "abclab"):
+        url = f"{base_url or _PROVIDERS_DEFAULT_BASE[provider_type]}/v1/models"
         headers = {"Authorization": f"Bearer {api_key}", "User-Agent": "wherewindsmeet/1.0"}
         models_key = "data"
         name_key = "id"
@@ -56,6 +55,14 @@ async def list_enabled_models(provider_type: str, base_url: str | None = None) -
         return {str(m.get(name_key)) for m in items if m.get(name_key)}
     except (httpx.HTTPError, ValueError):
         return None
+
+
+class _EndpointNotSupported(RuntimeError):
+    """프로바이더가 해당 엔드포인트(예: /v1/responses)를 지원하지 않아
+    다른 엔드포인트로의 폴백이 필요함. 상태코드 404/405/415에서 발생한다."""
+    def __init__(self, status_code: int, detail: str = ""):
+        self.status_code = status_code
+        super().__init__(f"endpoint not supported ({status_code}): {detail}")
 
 
 async def _raise_http_error(resp: httpx.Response, provider_label: str) -> None:
@@ -109,17 +116,24 @@ async def stream_chat(
     base_url: str | None,
     model: str,
     messages: list[dict],
+    api_key: str,
 ) -> AsyncIterator[str]:
-    """LLM과 스트리밍 채팅. 텍스트 델타를 yield한다."""
-    api_key = get_api_key(provider_type)
+    """LLM과 스트리밍 채팅. 텍스트 델타를 yield한다. api_key는 호출자가 resolve_api_key로 복호화해 전달."""
     if not api_key:
-        raise RuntimeError(f"{provider_type} API 키가 환경변수에 설정되지 않았습니다")
+        raise RuntimeError(f"{provider_type} API 키가 제공자에 설정되어 있지 않습니다")
 
     if provider_type == "ollama_cloud":
         async for chunk in _stream_ollama(base_url, model, messages, api_key):
             yield chunk
     elif provider_type == "opencode_zen":
-        async for chunk in _stream_zen(base_url, model, messages, api_key):
+        async for chunk in _stream_openai_compat(
+            provider_type, base_url, model, messages, api_key, "OpenCode Zen"
+        ):
+            yield chunk
+    elif provider_type == "abclab":
+        async for chunk in _stream_openai_compat(
+            provider_type, base_url, model, messages, api_key, "ABCLab"
+        ):
             yield chunk
     else:
         raise RuntimeError(f"지원하지 않는 제공자 타입: {provider_type}")
@@ -130,10 +144,11 @@ async def chat_complete(
     base_url: str | None,
     model: str,
     messages: list[dict],
+    api_key: str,
 ) -> str:
     """스트리밍을 모아 전체 응답 문자열을 반환한다 (플랜 생성 등)."""
     chunks: list[str] = []
-    async for chunk in stream_chat(provider_type, base_url, model, messages):
+    async for chunk in stream_chat(provider_type, base_url, model, messages, api_key):
         chunks.append(chunk)
     return "".join(chunks)
 
@@ -147,10 +162,11 @@ def _build_image_messages(
     미지원 모델이면 제공자 API가 오류를 반환하고 _raise_http_error가 RuntimeError로 변환한다.
     """
     data_url = f"data:{mime};base64,{image_b64}"
+    model_lower = model.lower()
     if provider_type == "ollama_cloud":
         # Ollama: message.images 필드에 base64 원문
         return [{"role": "user", "content": prompt, "images": [image_b64]}]
-    if model.startswith("gpt"):
+    if model_lower.startswith("gpt"):
         # OpenAI Responses API: input_text / input_image 블록
         return [
             {
@@ -161,7 +177,7 @@ def _build_image_messages(
                 ],
             }
         ]
-    if model.startswith("claude"):
+    if model_lower.startswith("claude"):
         # Anthropic Messages API: text / image(base64 source) 블록
         return [
             {
@@ -194,6 +210,7 @@ async def describe_image(
     prompt: str,
     image_bytes: bytes,
     mime: str,
+    api_key: str,
 ) -> str:
     """비전 모델로 이미지를 묘사/분석해 텍스트를 반환한다.
     비전 미지원 모델이면 제공자 API 오류가 RuntimeError로 전파된다(라우터에서 400 처리)."""
@@ -202,7 +219,7 @@ async def describe_image(
     b64 = base64.b64encode(image_bytes).decode("ascii")
     messages = _build_image_messages(provider_type, model, prompt, b64, mime)
     chunks: list[str] = []
-    async for delta in stream_chat(provider_type, base_url, model, messages):
+    async for delta in stream_chat(provider_type, base_url, model, messages, api_key):
         chunks.append(delta)
     return "".join(chunks)
 
@@ -210,7 +227,7 @@ async def describe_image(
 async def _stream_ollama(
     base_url: str | None, model: str, messages: list[dict], api_key: str
 ) -> AsyncIterator[str]:
-    url = f"{base_url or _PROVIDER_DEFAULT_BASE['ollama_cloud']}/api/chat"
+    url = f"{base_url or _PROVIDERS_DEFAULT_BASE['ollama_cloud']}/api/chat"
     payload = {"model": model, "messages": messages, "stream": True}
     async with httpx.AsyncClient(timeout=None) as client:
         async with client.stream(
@@ -229,25 +246,42 @@ async def _stream_ollama(
                     yield delta
 
 
-async def _stream_zen(
-    base_url: str | None, model: str, messages: list[dict], api_key: str
+async def _stream_openai_compat(
+    provider_type: str,
+    base_url: str | None,
+    model: str,
+    messages: list[dict],
+    api_key: str,
+    label: str,
 ) -> AsyncIterator[str]:
-    base = base_url or _PROVIDER_DEFAULT_BASE["opencode_zen"]
+    """OpenAI 호환 제공자(opencode_zen, abclab) 공용 스트리머.
+    모델 패밀리별 엔드포인트 라우팅(대소문자 무시 매칭).
+    GPT 계열: /v1/responses (OpenAI Responses API)
+    Claude 계열: /v1/messages (Anthropic Messages API)
+    그 외(GLM/Qwen/DeepSeek/Kimi/MiniMax/Grok 등): /v1/chat/completions (표준 OpenAI 호환)"""
+    base = base_url or _PROVIDERS_DEFAULT_BASE[provider_type]
     headers = {
         "Authorization": f"Bearer {api_key}",
         "User-Agent": "wherewindsmeet/1.0 ai-sdk/provider-utils",
     }
+    model_lower = model.lower()
 
-    # 모델 패밀리별 엔드포인트 라우팅.
-    # GPT 계열: /v1/responses (OpenAI Responses API)
-    # Claude 계열: /v1/messages (Anthropic Messages API)
-    # 그 외(GLM/Qwen/DeepSeek/Kimi/MiniMax/Grok 등): /v1/chat/completions (표준 OpenAI 호환)
-    if model.startswith("gpt"):
-        url = f"{base}/v1/responses"
-        payload: dict = {"model": model, "input": messages, "stream": True}
-        async for chunk in _stream_zen_responses(url, payload, headers):
-            yield chunk
-    elif model.startswith("claude"):
+    if model_lower.startswith("gpt"):
+        url_r = f"{base}/v1/responses"
+        payload_r: dict = {"model": model, "input": messages, "stream": True}
+        try:
+            async for chunk in _stream_oai_responses(url_r, payload_r, headers, label):
+                yield chunk
+        except _EndpointNotSupported as e:
+            logger.debug(
+                "%s: /v1/responses 미지원(status=%s) — /v1/chat/completions 폴백",
+                label, e.status_code,
+            )
+            url_c = f"{base}/v1/chat/completions"
+            payload_c = {"model": model, "messages": messages, "stream": True}
+            async for chunk in _stream_oai_chat(url_c, payload_c, headers, label):
+                yield chunk
+    elif model_lower.startswith("claude"):
         url = f"{base}/v1/messages"
         system_text = None
         conv: list[dict] = []
@@ -259,22 +293,22 @@ async def _stream_zen(
         payload = {"model": model, "messages": conv, "max_tokens": 4096, "stream": True}
         if system_text:
             payload["system"] = system_text
-        async for chunk in _stream_zen_messages(url, payload, headers):
+        async for chunk in _stream_oai_messages(url, payload, headers, label):
             yield chunk
     else:
         url = f"{base}/v1/chat/completions"
         payload = {"model": model, "messages": messages, "stream": True}
-        async for chunk in _stream_zen_chat(url, payload, headers):
+        async for chunk in _stream_oai_chat(url, payload, headers, label):
             yield chunk
 
 
-async def _stream_zen_chat(
-    url: str, payload: dict, headers: dict
+async def _stream_oai_chat(
+    url: str, payload: dict, headers: dict, label: str
 ) -> AsyncIterator[str]:
     """표준 OpenAI 호환 /v1/chat/completions SSE 스트리밍."""
     async with httpx.AsyncClient(timeout=None) as client:
         async with client.stream("POST", url, json=payload, headers=headers) as resp:
-            await _raise_http_error(resp, "OpenCode Zen")
+            await _raise_http_error(resp, label)
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):
                     continue
@@ -294,13 +328,25 @@ async def _stream_zen_chat(
                     yield content
 
 
-async def _stream_zen_responses(
-    url: str, payload: dict, headers: dict
+async def _stream_oai_responses(
+    url: str, payload: dict, headers: dict, label: str
 ) -> AsyncIterator[str]:
-    """OpenAI Responses API /v1/responses SSE 스트리밍 (GPT 계열)."""
+    """OpenAI Responses API /v1/responses SSE 스트리밍 (GPT 계열).
+
+    response.output_text.delta 이벤트만 처리한다. snapshot 계열 이벤트
+    (.done/.completed 등)는 지금까지 누적된 전체 텍스트를 담고 있어 이를
+    yield하면 스트림 버퍼에 전체 응답이 중복 삽입되므로 무시한다.
+    404/405/415 수신 시 _EndpointNotSupported를 raise해 상위에서 폴백하게 한다."""
     async with httpx.AsyncClient(timeout=None) as client:
         async with client.stream("POST", url, json=payload, headers=headers) as resp:
-            await _raise_http_error(resp, "OpenCode Zen")
+            if resp.status_code in (404, 405, 415):
+                body = ""
+                try:
+                    body = (await resp.aread()).decode("utf-8", errors="replace")[:200]
+                except Exception:
+                    pass
+                raise _EndpointNotSupported(resp.status_code, body)
+            await _raise_http_error(resp, label)
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):
                     continue
@@ -311,32 +357,27 @@ async def _stream_zen_responses(
                     data = json.loads(data_str)
                 except json.JSONDecodeError:
                     continue
-                # Responses API: event type별 delta 추출
                 etype = data.get("type", "")
                 if etype == "response.output_text.delta":
                     delta = data.get("delta")
                     if isinstance(delta, str) and delta:
                         yield delta
-                else:
-                    # 일반 delta/text 필드 폴백
-                    delta = data.get("delta")
-                    if isinstance(delta, str) and delta:
-                        yield delta
-                    elif isinstance(delta, dict):
-                        text = delta.get("text")
-                        if isinstance(text, str) and text:
-                            yield text
-                    elif isinstance(data.get("text"), str) and data["text"]:
-                        yield data["text"]
+                elif etype and etype not in (
+                    "response.created", "response.in_progress",
+                ):
+                    logger.debug(
+                        "%s /v1/responses: delta 외 이벤트 무시 type=%s keys=%s",
+                        label, etype, sorted(data.keys()),
+                    )
 
 
-async def _stream_zen_messages(
-    url: str, payload: dict, headers: dict
+async def _stream_oai_messages(
+    url: str, payload: dict, headers: dict, label: str
 ) -> AsyncIterator[str]:
     """Anthropic Messages API /v1/messages SSE 스트리밍 (Claude 계열)."""
     async with httpx.AsyncClient(timeout=None) as client:
         async with client.stream("POST", url, json=payload, headers=headers) as resp:
-            await _raise_http_error(resp, "OpenCode Zen")
+            await _raise_http_error(resp, label)
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):
                     continue

@@ -278,7 +278,7 @@ session_id -> { events: [sse_str, ...],   # 전체 이벤트 히스토리(과거
 ## 10. 권한 / 보안
 
 - `require_permission("deep_research", "read"|"create")` — `사용자` 역할 이상(사용자·프리미엄·운영자)이 시드로 권한 보유(FR-I02).
-- LLM/API 키(`OLLAMA_API_KEY`, `ZEN_AI_API_KEY`, `TAVILY_API_KEY`)는 **백엔드 환경변수**에만 존재하고 클라이언트에 노출되지 않는다(NFR-S11).
+- LLM 제공자 API 키는 **운영자가 모델 관리 UI에서 등록**해 Fernet 암호화로 DB(`llm_providers.api_key_encrypted`)에 저장되며, 백엔드에서 복호화해 메모리에서만 사용한다. 평문은 클라이언트·감사 로그에 노출되지 않는다(NFR-S10/S11). Tavily 웹 검색 키(`TAVILY_API_KEY`)만 환경변수로 주입된다.
 - 모든 세션 접근은 `session.account_id == account.id` 로 소유자 검증(타인 세션 403).
 
 ---
@@ -287,8 +287,8 @@ session_id -> { events: [sse_str, ...],   # 전체 이벤트 히스토리(과거
 
 | 변수 | 용도 | 비고 |
 |---|---|---|
-| `OLLAMA_API_KEY` | Ollama Cloud 호출 | `provider_type=ollama_cloud` |
-| `ZEN_AI_API_KEY` | OpenCode Zen 호출 | `provider_type=opencode_zen` |
+| `LLM_KEY_ENCRYPTION_KEY` | LLM API 키 암호화 마스터 키(Fernet) | UI 등록 키를 암호화. 운영 필수 |
+| `ABCLAB_BASE_URL` | ABCLab 기본 base URL | `/v1` 제외. 기본 `https://api.abclab.ktds.com` |
 | `TAVILY_API_KEY` | 웹 검색(Tavily) | 미설정 시 검색 건너뛰고 LLM만으로 진행 |
 
-제공자/모델 등록은 **모델 관리 메뉴**(FR-J)에서 하며, `GET /models`는 등록 모델과 제공자 API 실사용가능 모델의 **교집합**만 노출한다(조회 실패 시 검증 생략).
+LLM 제공자별 API 키는 환경변수가 아닌 **모델 관리 메뉴**(FR-J)에서 항목별로 등록한다. `GET /models`는 등록 모델과 제공자 API 실사용가능 모델의 **교집합**만 노출한다(조회 실패 시 검증 생략).

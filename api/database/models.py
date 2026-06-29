@@ -159,10 +159,12 @@ class LLMProvider(Base):
     __tablename__ = "llm_providers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    # "ollama_cloud" | "opencode_zen"
+    # "ollama_cloud" | "opencode_zen" | "abclab"
     provider_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # API 키 평문은 절대 저장하지 않고 Fernet 암호문만 저장(NFR-S10/S11).
+    api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     # 모델 식별자 문자열 배열
     models: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

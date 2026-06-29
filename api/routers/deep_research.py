@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.deps import require_permission
-from core.llm import chat_complete, is_configured, list_enabled_models, stream_chat
+from core.llm import chat_complete, list_enabled_models, resolve_api_key, stream_chat
 from core.websearch import format_search_results, web_search
 from database.connection import AsyncSessionLocal, get_db
 from database.models import Account, DeepResearchMessage, DeepResearchSession, LLMProvider
@@ -183,10 +183,11 @@ async def list_models_for_selection(
     )
     result = []
     for p in providers:
-        if not is_configured(p.provider_type):
+        api_key = resolve_api_key(p)
+        if not api_key:
             continue
         registered = list(p.models or [])
-        enabled = await list_enabled_models(p.provider_type, p.base_url)
+        enabled = await list_enabled_models(p.provider_type, p.base_url, api_key)
         if enabled is not None:
             usable = [m for m in registered if m in enabled]
         else:
@@ -211,16 +212,17 @@ async def create_session(
     provider = await db.get(LLMProvider, body.provider_id)
     if not provider or not provider.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "활성 제공자를 찾을 수 없습니다")
-    if not is_configured(provider.provider_type):
+    api_key = resolve_api_key(provider)
+    if not api_key:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"{provider.provider_type} API 키가 환경변수에 설정되지 않았습니다",
+            f"{provider.provider_type} API 키가 제공자에 설정되어 있지 않습니다",
         )
     if body.model not in (provider.models or []):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "선택한 모델이 제공자에 없습니다")
 
     # 제공자 API에서 실제 사용 가능한 모델 조회가 가능하면 추가 검증
-    enabled = await list_enabled_models(provider.provider_type, provider.base_url)
+    enabled = await list_enabled_models(provider.provider_type, provider.base_url, api_key)
     if enabled is not None and body.model not in enabled:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -306,13 +308,21 @@ async def send_message(
     provider = await db.get(LLMProvider, session.provider_id) if session.provider_id else None
     if not provider:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "제공자를 찾을 수 없습니다")
+    api_key = resolve_api_key(provider)
+    if not api_key:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{provider.provider_type} API 키가 제공자에 설정되어 있지 않습니다",
+        )
 
     messages = [
         {"role": "system", "content": _PLAN_SYSTEM},
         {"role": "user", "content": body.content},
     ]
     try:
-        raw = await chat_complete(provider.provider_type, provider.base_url, session.model, messages)
+        raw = await chat_complete(
+            provider.provider_type, provider.base_url, session.model, messages, api_key
+        )
     except RuntimeError as e:
         await db.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))
@@ -429,6 +439,7 @@ async def _execute_step(
     session_id: str,
     session: DeepResearchSession,
     provider: LLMProvider,
+    api_key: str,
     step: dict,
     step_summaries: list[str],
     idx: int,
@@ -452,7 +463,7 @@ async def _execute_step(
     while searches <= _MAX_SEARCHES_PER_STEP:
         chunk_text = ""
         async for delta in stream_chat(
-            provider.provider_type, provider.base_url, session.model, messages
+            provider.provider_type, provider.base_url, session.model, messages, api_key
         ):
             chunk_text += delta
             collected += delta
@@ -509,6 +520,14 @@ async def _run_agent_loop(session_id: str, account_id: str):
             _append_event(session_id, _sse("error", {"message": "제공자를 찾을 수 없습니다"}))
             _finish_live(session_id)
             return
+        api_key = resolve_api_key(provider)
+        if not api_key:
+            _append_event(
+                session_id,
+                _sse("error", {"message": f"{provider.provider_type} API 키가 설정되어 있지 않습니다"}),
+            )
+            _finish_live(session_id)
+            return
 
         session.status = "running"
         await db.commit()
@@ -523,7 +542,7 @@ async def _run_agent_loop(session_id: str, account_id: str):
                 _append_event(session_id, _sse("step_start", {"index": idx, "title": step.get("title", "")}))
                 holder = {"text": ""}
                 await _execute_step(
-                    db, session_id, session, provider, step, step_summaries, idx, holder
+                    db, session_id, session, provider, api_key, step, step_summaries, idx, holder
                 )
                 step_summaries.append(
                     f"## 스텝 {idx + 1}: {step.get('title', '')}\n{holder['text']}"
@@ -544,7 +563,7 @@ async def _run_agent_loop(session_id: str, account_id: str):
             ]
             final_text = ""
             async for delta in stream_chat(
-                provider.provider_type, provider.base_url, session.model, final_messages
+                provider.provider_type, provider.base_url, session.model, final_messages, api_key
             ):
                 final_text += delta
                 _append_event(session_id, _sse("final_delta", {"delta": delta}))

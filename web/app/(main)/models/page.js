@@ -10,6 +10,7 @@ import useAuthStore from '@/store/auth'
 const PROVIDER_TYPES = [
   { value: 'ollama_cloud', label: 'Ollama Cloud' },
   { value: 'opencode_zen', label: 'OpenCode Zen' },
+  { value: 'abclab', label: 'ABCLab' },
 ]
 
 const emptyForm = {
@@ -17,6 +18,7 @@ const emptyForm = {
   display_name: '',
   base_url: '',
   modelsText: '',
+  apiKey: '',
   is_active: true,
 }
 
@@ -63,6 +65,7 @@ export default function ModelsPage() {
       display_name: p.display_name,
       base_url: p.base_url || '',
       modelsText: (p.models || []).join('\n'),
+      apiKey: '',
       is_active: p.is_active,
     })
     setEditingId(p.id)
@@ -85,14 +88,21 @@ export default function ModelsPage() {
       setMsg('표시명과 최소 한 개의 모델이 필요합니다')
       return
     }
+    if (!editingId && !form.apiKey.trim()) {
+      setMsg('API 키는 필수입니다')
+      return
+    }
     try {
       if (editingId) {
-        await api.models.updateProvider(editingId, {
+        const patch = {
           display_name: form.display_name,
           base_url: form.base_url || null,
           models,
           is_active: form.is_active,
-        })
+        }
+        // 편집 시 API 키는 비워두면 변경하지 않음(입력한 경우에만 교체)
+        if (form.apiKey.trim()) patch.api_key = form.apiKey.trim()
+        await api.models.updateProvider(editingId, patch)
         setMsg('제공자를 수정했습니다')
       } else {
         await api.models.createProvider({
@@ -100,6 +110,7 @@ export default function ModelsPage() {
           display_name: form.display_name,
           base_url: form.base_url || null,
           models,
+          api_key: form.apiKey.trim(),
           is_active: form.is_active,
         })
         setMsg('제공자를 추가했습니다')
@@ -142,7 +153,7 @@ export default function ModelsPage() {
         )}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        LLM 제공자와 모델을 관리합니다. API 키는 환경변수로 관리됩니다.
+        LLM 제공자와 모델을 관리합니다. API 키는 이곳에 등록되어 암호화해 저장됩니다.
       </p>
 
       {msg && <p className="mt-3 text-xs text-muted-foreground">{msg}</p>}
@@ -182,6 +193,21 @@ export default function ModelsPage() {
               onChange={(e) => setForm({ ...form, base_url: e.target.value })}
               placeholder="https://ollama.com"
             />
+          </label>
+          <label className="block text-xs">
+            <span className="mb-1 block text-muted-foreground">
+              API 키{editingId ? ' (변경 시에만 입력)' : ' (필수)'}
+            </span>
+            <Input
+              type="password"
+              value={form.apiKey}
+              onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+              placeholder={editingId ? '•••• (입력하지 않으면 유지)' : 'code-...'}
+              autoComplete="off"
+            />
+            <span className="mt-1 block text-[10px] text-muted-foreground">
+              암호화되어 안전하게 저장됩니다. 평문은 다시 조회할 수 없습니다.
+            </span>
           </label>
           <label className="block text-xs">
             <span className="mb-1 block text-muted-foreground">
@@ -246,9 +272,11 @@ export default function ModelsPage() {
                           ? 'bg-primary/10 text-primary'
                           : 'bg-destructive/10 text-destructive'
                       }`}
-                      title="환경변수 API 키 설정 여부"
+                      title="API 키 설정 여부 (평문은 노출되지 않음)"
                     >
-                      {p.api_key_configured ? '키 설정됨' : '키 미설정'}
+                      {p.api_key_configured
+                        ? `키 ${p.api_key_masked || '설정됨'}`
+                        : '키 미설정'}
                     </span>
                   </div>
                   {p.base_url && (
