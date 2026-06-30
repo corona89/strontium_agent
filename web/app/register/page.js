@@ -49,7 +49,7 @@ export default function RegisterPage() {
         <div className="mb-8 flex flex-col items-center gap-3">
           <SrLogo className="size-24" />
           <div className="text-center">
-            <h1 className="text-xl font-bold tracking-tight">Where Winds Meet</h1>
+            <h1 className="text-xl font-bold tracking-tight">Strontium Agent</h1>
             <p className="mt-1 text-xs text-muted-foreground">새 계정을 만드세요</p>
           </div>
         </div>

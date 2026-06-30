@@ -1,0 +1,56 @@
+# Windows NSIS 인스톨러 설정
+# 빌드: yarn dist (또는 electron-builder --win nsis)
+
+appId: com.strontium.agent
+productName: Strontium Agent
+copyright: Copyright © 2025
+
+# 빌드된 Electron main/preload 는 asar 로 패키징
+asar: true
+asarUnpack:
+  - "**/*.{node,dll}"
+
+# 번들에 포함할 외부 리소스
+# production 빌드에서만 extraResources 가 의미있게 동작
+extraResources:
+  - from: ../api-dist/strontium_agent
+    to: api-dist/strontium_agent
+    filter: ["**/*"]
+  - from: ../web-out
+    to: web-out
+    filter: ["**/*"]
+
+directories:
+  output: dist
+  buildResources: build
+
+# 빌드 타겟 — Windows NSIS (설치형 .exe)
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # build/icon.ico 가 있으면 사용, 없으면 electron 기본 아이콘
+  # icon: build/icon.ico
+  # 코드사이닝 미적용 — SmartScreen 경고 표시됨 (사용자가 "추가 정보" → "실행" 클릭 필요)
+  signtoolOptions: null
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Strontium Agent
+  # installerIcon: build/icon.ico
+  # installerHeaderIcon: build/icon.ico
+
+# 압축 — installer 크기 최적화
+compression: maximum
+
+# 파일 무시 — 빌드 산출물과 스크립트는 앱 패키지에서 제외
+files:
+  - main.js
+  - preload.js
+  - splash.html
+  - package.json
+  - node_modules/**/*

@@ -1,0 +1,15 @@
+{
+  "/(main)/audit-logs/page": "/audit-logs",
+  "/(main)/deep-research/page": "/deep-research",
+  "/(main)/llmwiki/page": "/llmwiki",
+  "/(main)/models/page": "/models",
+  "/(main)/page": "/",
+  "/(main)/roles/page": "/roles",
+  "/(main)/settings/page": "/settings",
+  "/(main)/users/page": "/users",
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/favicon.ico/route": "/favicon.ico",
+  "/login/page": "/login",
+  "/register/page": "/register"
+}

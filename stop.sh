@@ -4,7 +4,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_DIR="$ROOT/.run"
 
-echo "[stop] wherewindsmeet 서버 종료 중..."
+echo "[stop] strontium_agent 서버 종료 중..."
 
 # 1) start.sh 으로 띄운 프로세스(PID 파일)와 자식 트리를 함께 종료
 kill_pid_file() {

@@ -8,7 +8,7 @@ from sqlalchemy import update
 
 from core.config import settings
 from core.limiter import limiter
-from core.seed import run_seed
+from core.seed import run_seed, seed_local_admin
 from database.connection import Base, AsyncSessionLocal, engine
 import database.models  # noqa: F401 — 모델을 Base에 등록
 from database.models import DeepResearchSession
@@ -28,6 +28,9 @@ async def lifespan(app: FastAPI):
         )
         await db.commit()
         await run_seed(db)
+        # 로컬 데스크톱 모드 — 단일 관리자 자동 시드
+        if settings.LOCAL_MODE:
+            await seed_local_admin(db)
     yield
 
 
@@ -53,7 +56,13 @@ app.include_router(models.router)
 app.include_router(deep_research.router)
 app.include_router(llmwiki.router)
 
+# 로컬 데스크톱 모드에서만 /local/* 노출 (Electron 자동 로그인용)
+if settings.LOCAL_MODE:
+    from routers import local
+
+    app.include_router(local.router)
+
 
 @app.get("/")
 def read_root():
-    return {"message": "Where Winds Meet API"}
+    return {"message": "Strontium Agent API"}

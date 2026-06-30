@@ -137,7 +137,7 @@ draft ──(메시지 전송 → 플랜 생성)──▶ awaiting_approval
 > GitHub 등 일반 마크다운 뷰어에서는 XML 원문으로 보이며, 이 경우 위 파일을 draw.io로 열면 된다.
 
 ```drawio
-    <mxfile host="app.diagrams.net" agent="wherewindsmeet" version="24.0.0">
+    <mxfile host="app.diagrams.net" agent="strontium_agent" version="24.0.0">
       <diagram id="deepresearch-seq" name="DeepResearch Sequence">
     <mxGraphModel dx="1422" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1900" math="0" shadow="0">
       <root>

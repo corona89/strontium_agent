@@ -91,11 +91,11 @@ Next.js는 빌드 시점에 환경변수를 번들에 포함시키는 문제가 
 
 ```bash
 # api
-docker build -t wherewindsmeet-api ./api
+docker build -t strontium_agent-api ./api
 
 # web
-docker build -t wherewindsmeet-web ./web
-docker run -e NEXT_PUBLIC_API_URL=https://api.example.com wherewindsmeet-web
+docker build -t strontium_agent-web ./web
+docker run -e NEXT_PUBLIC_API_URL=https://api.example.com strontium_agent-web
 ```
 
 ### UI 컴포넌트 라이브러리

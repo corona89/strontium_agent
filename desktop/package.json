@@ -1,0 +1,21 @@
+{
+  "name": "strontium_agent-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Strontium Agent — Windows desktop bundle (Electron + FastAPI + Next.js)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env SA_DEV=1 electron .",
+    "dist": "electron-builder --win nsis",
+    "build:api": "powershell -ExecutionPolicy Bypass -File ./scripts/build-api.ps1",
+    "build:web": "powershell -ExecutionPolicy Bypass -File ./scripts/build-web.ps1",
+    "build:all": "powershell -ExecutionPolicy Bypass -File ./scripts/build-all.ps1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0",
+    "wait-on": "^8.0.0"
+  }
+}

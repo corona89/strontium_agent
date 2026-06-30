@@ -12,7 +12,7 @@ export default function Home() {
         안녕하세요, {displayName}님
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Where Winds Meet에 오신 것을 환영합니다. 왼쪽 메뉴에서 원하는 페이지로 이동하세요.
+        Strontium Agent에 오신 것을 환영합니다. 왼쪽 메뉴에서 원하는 페이지로 이동하세요.
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">

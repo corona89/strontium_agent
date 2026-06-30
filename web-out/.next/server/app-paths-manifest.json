@@ -1,0 +1,15 @@
+{
+  "/(main)/audit-logs/page": "app/(main)/audit-logs/page.js",
+  "/(main)/deep-research/page": "app/(main)/deep-research/page.js",
+  "/(main)/llmwiki/page": "app/(main)/llmwiki/page.js",
+  "/(main)/models/page": "app/(main)/models/page.js",
+  "/(main)/page": "app/(main)/page.js",
+  "/(main)/roles/page": "app/(main)/roles/page.js",
+  "/(main)/settings/page": "app/(main)/settings/page.js",
+  "/(main)/users/page": "app/(main)/users/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/register/page": "app/register/page.js"
+}

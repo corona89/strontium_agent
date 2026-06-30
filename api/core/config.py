@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    # 로컬 데스크톱 모드 — run_local.py 진입점에서 true로 설정됨.
+    # 이 모드에서는 /auth/local-bootstrap 엔드포인트가 노출되고
+    # OAuth/운영용 검증 일부가 완화된다.
+    LOCAL_MODE: bool = False
+
     DATABASE_URL: str = _DEFAULT_DB
 
     JWT_SECRET: str = _INSECURE_SECRET
@@ -19,7 +24,7 @@ class Settings(BaseSettings):
 
     COOKIE_SECURE: bool = False  # 운영 환경에서는 True로 설정
 
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     FRONTEND_URL: str = "http://localhost:3000"
 
@@ -47,6 +52,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_jwt_secret(self) -> "Settings":
+        # LOCAL_MODE에서는 자동 생성된 비밀키를 run_local.py 가 주입하므로 검증을 건너뛴다.
+        if self.LOCAL_MODE:
+            return self
         if self.JWT_SECRET == _INSECURE_SECRET:
             if self.COOKIE_SECURE:
                 raise ValueError(

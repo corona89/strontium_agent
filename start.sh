@@ -8,7 +8,7 @@ mkdir -p "$PID_DIR"
 # OS 환경변수 OLLAMA_API_KEY(스테일 키)가 .env 의 올바른 키를 덮어쓰지 않도록 이 세션에서는 비움
 unset OLLAMA_API_KEY
 
-echo "[start] wherewindsmeet 서버 시작 (API :8000, Web :3000)"
+echo "[start] strontium_agent 서버 시작 (API :8000, Web :3000)"
 
 start_proc() {
   local name="$1" cmd_dir="$2" cmd="$3" port="$4"

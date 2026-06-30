@@ -1,4 +1,5 @@
 import logging
+import secrets
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from database.models import Account, AccountRole, Function, Role, RoleFunction
 logger = logging.getLogger(__name__)
 
 ADMIN_EMAIL = "cpar2002@gmail.com"
+LOCAL_ADMIN_EMAIL = "local@strontium.local"
 
 _FUNCTION_DEFS = [
     ("home", "홈 페이지"),
@@ -154,3 +156,38 @@ async def ensure_default_role(db: AsyncSession, account_id: str) -> None:
     if not ar:
         db.add(AccountRole(account_id=account_id, role_id=default_role.id))
         await db.flush()
+
+
+async def seed_local_admin(db: AsyncSession) -> str | None:
+    """LOCAL_MODE 전용 단일 관리자 계정을 시드한다.
+
+    동일한 이메일이 이미 존재하면 비밀번호/역할만 보강하고, 없으면 새로 만든다.
+    반환값은 계정 id(자동 로그인에 사용). 로컬 모드에서만 호출된다.
+    """
+    admin_role = await db.scalar(select(Role).where(Role.name == "운영자"))
+    if not admin_role:
+        return None
+
+    account = await db.scalar(select(Account).where(Account.email == LOCAL_ADMIN_EMAIL))
+    if not account:
+        account = Account(
+            email=LOCAL_ADMIN_EMAIL,
+            nickname="로컬 관리자",
+            is_active=True,
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+        )
+        db.add(account)
+        await db.flush()
+
+    ar = await db.scalar(
+        select(AccountRole).where(
+            AccountRole.account_id == account.id,
+            AccountRole.role_id == admin_role.id,
+        )
+    )
+    if not ar:
+        db.add(AccountRole(account_id=account.id, role_id=admin_role.id))
+        await db.flush()
+
+    await db.commit()
+    return account.id

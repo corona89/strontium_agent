@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-echo [stop] wherewindsmeet 서버 종료 중...
+echo [stop] strontium_agent 서버 종료 중...
 
 REM 1) start.bat 으로 띄운 창(제목 ww-api / ww-web)과 자식 프로세스 트리를 /T 로 함께 종료
 taskkill /F /T /FI "WINDOWTITLE eq ww-api*" >nul 2>nul && echo   - ww-api 종료

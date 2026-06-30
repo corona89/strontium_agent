@@ -40,7 +40,7 @@ async def list_enabled_models(
         name_key = "name"
     elif provider_type in ("opencode_zen", "abclab"):
         url = f"{base_url or _PROVIDERS_DEFAULT_BASE[provider_type]}/v1/models"
-        headers = {"Authorization": f"Bearer {api_key}", "User-Agent": "wherewindsmeet/1.0"}
+        headers = {"Authorization": f"Bearer {api_key}", "User-Agent": "strontium-agent/1.0"}
         models_key = "data"
         name_key = "id"
     else:
@@ -262,7 +262,7 @@ async def _stream_openai_compat(
     base = base_url or _PROVIDERS_DEFAULT_BASE[provider_type]
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "User-Agent": "wherewindsmeet/1.0 ai-sdk/provider-utils",
+        "User-Agent": "strontium-agent/1.0 ai-sdk/provider-utils",
     }
     model_lower = model.lower()
 

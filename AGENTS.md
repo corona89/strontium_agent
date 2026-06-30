@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Monorepo: `api/` (FastAPI, Python 3.14, uv) + `web/` (Next.js 16, JSX, yarn). Always `cd` into the package before running commands.
+Monorepo: `api/` (FastAPI, Python 3.14, uv) + `web/` (Next.js 16, JSX, yarn) + `desktop/` (Electron 셸, Windows 설치 앱 번들링). Always `cd` into the package before running commands.
 
 ## Commands
 
@@ -16,6 +16,17 @@ uv add <pkg> / uv remove <pkg>             # manage deps
 yarn dev          # dev server (port 3000)
 yarn build        # prod build (verifies all pages compile)
 yarn lint         # ESLint
+```
+
+### Desktop (`desktop/`)
+```bash
+yarn install      # electron, electron-builder, wait-on 설치
+yarn dev          # SA_DEV=1 — 번들 대신 모노레포 api/·web/ 직접 실행
+yarn build:all    # 전체 빌드 → desktop/dist/*Setup*.exe (NSIS 인스톨러)
+# 단계별 빌드:
+yarn build:api    # PyInstaller → ../api-dist/strontium_agent/
+yarn build:web    # Next standalone 빌드 → ../web-out/
+yarn dist         # electron-builder (api-dist/·web-out/ 필요)
 ```
 
 ### OpenAPI regeneration (run after changing API endpoints)
@@ -44,6 +55,27 @@ The web frontend reads `openapi.json` at the repo root to understand API schemas
 
 ### Runtime env injection (web)
 `NEXT_PUBLIC_*` vars are NOT baked at build time. The chain is: `docker-entrypoint.sh` → `public/env-config.js` (`window.__ENV__`) → `lib/env.js` `getEnv()`. When adding a new `NEXT_PUBLIC_*` var, also add it to `web/docker-entrypoint.sh` and `web/public/env-config.js` (dev fallback).
+
+## Desktop bundle gotchas
+
+### LOCAL_MODE 단일 사용자 자동 로그인
+`api/run_local.py` 가 실행되면 `LOCAL_MODE=true` + 자동 생성 시크릿을 환경변수로 주입한 뒤 uvicorn 을 띄운다. 이 모드에서:
+- `core/seed.py::seed_local_admin()` 이 `local@strontium.local` 운영자 계정을 시드 (난수 비밀번호)
+- `routers/local.py` 의 `/local/bootstrap` 엔드포인트가 노출되어 Electron main 이 토큰을 받아감 (POST → access/refresh 토큰 JSON)
+- `core/config.py` 의 JWT_SECRET 검증이 우회됨 (config.json 의 자동 생성 키 사용)
+- **절대 웹 모드에서 `LOCAL_MODE=true` 로 설정 금지** — `/local/bootstrap` 이 인증 없이 토큰을 반환함
+
+### PyInstaller 빌드 시 누락 모듈 주의
+`api/strontium_agent.spec` 에 SQLAlchemy dialects / limits(slowapi) 를 명시해두었다. 새 동적 import 패키지를 추가하면 빌드 후 실행 시 `ModuleNotFoundError` 가 날 수 있으니 스펙의 `hiddenimports` 에 추가. `uv add` 후엔 `yarn build:api` 로 검증.
+
+### Next.js standalone 은 .next/static 이 별도
+`yarn build` 후 `.next/standalone/` 트리엔 정적 에셋이 빠져있다. `desktop/scripts/build-web.ps1` 이 `.next/static/` 과 `public/` 을 `web-out/` 으로 같이 복사함. 이 복사를 생략하면 CSS/JS 404.
+
+### 데이터 영속성
+`%APPDATA%\StrontiumAgent\data\config.json` 의 `LLM_KEY_ENCRYPTION_KEY` 가 없으면 UI에서 등록한 LLM 제공자 키를 복호화할 수 없다. 이 파일/디렉토리를 사용자가 삭제하면 위키/모델 설정이 초기화됨.
+
+### 포트 충돌 시 앱 시작 실패
+고정 포트 3000(web)/8000(api) 사용. 점유 시 스플래시 단계에서 에러 다이얼로그 표시 후 종료.
 
 ## Backend architecture notes
 

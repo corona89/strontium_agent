@@ -2,8 +2,8 @@ import "./globals.css";
 import Script from "next/script";
 
 export const metadata = {
-  title: "Where Winds Meet",
-  description: "Where Winds Meet",
+  title: "Strontium Agent",
+  description: "Strontium Agent",
 };
 
 export default function RootLayout({ children }) {

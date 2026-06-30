@@ -38,7 +38,7 @@ export default function TopNav() {
         >
           <Menu size={20} />
         </button>
-        <span className="font-semibold text-sm">Where Winds Meet</span>
+        <span className="font-semibold text-sm">Strontium Agent</span>
       </div>
 
       {/* 우측: 사용자명 + 드롭다운 */}

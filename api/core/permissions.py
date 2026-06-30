@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from core.config import settings
 from database.models import Account, AccountRole, Function, Role, RoleFunction
 
 
@@ -13,6 +14,17 @@ async def get_account_permissions(db: AsyncSession, account_id: str) -> dict:
     }
     여러 역할의 권한은 합집합(OR).
     """
+    # LOCAL_MODE(데스크톱 단일 사용자) — 모든 기능에 full 권한 보장.
+    # 역할/DB 상태와 무관하게 require_permission(core/deps.py) 과 /auth/me(사이드바) 양쪽에 동일 적용.
+    # 시스템 역할 삭제는 routers/roles.py 의 is_system 가드가 별도로 막으므로 안전.
+    if settings.LOCAL_MODE:
+        fns = (await db.scalars(select(Function))).all()
+        permissions = {
+            fn.name: {"create": True, "read": True, "update": True, "delete": True}
+            for fn in fns
+        }
+        return {"roles": ["운영자"], "permissions": permissions}
+
     rows = (
         await db.execute(
             select(RoleFunction, Function, Role)
